@@ -6,7 +6,6 @@ import net.runelite.api.Actor;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Projectile;
-import net.runelite.api.WorldType;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ProjectileMoved;
@@ -39,8 +38,8 @@ import java.util.stream.Collectors;
  *   <li>Optional auto protection prayer, driven by two tables in the config: monster name -> style
  *   for single-style monsters, and animation/projectile id -> style for multi-style ones.</li>
  * </ul>
- * Everything is refused on PvP worlds and while a player is involved (we target one, or one targets us).
- * The Wilderness itself is allowed, for Wilderness bosses.
+ * Everything is refused while a player is involved (we target one, or one targets us).
+ * The Wilderness and PvP worlds themselves are allowed, for Wilderness bosses and Revenants.
  */
 @PluginDescriptor(
         name = PluginDescriptor.Default + "Gear Switcher",
@@ -107,7 +106,7 @@ public class GearSwitcherPlugin extends Plugin {
         if (!Microbot.isLoggedIn()) return;
         boolean pvp = Microbot.getClientThread().runOnClientThreadOptional(this::isPvpSituation).orElse(true);
         if (pvp) {
-            Microbot.log("Gear Switcher is PvM only: switching is off on PvP worlds and while a player is involved.");
+            Microbot.log("Gear Switcher is PvM only: switching is off while a player is involved.");
             return;
         }
 
@@ -209,12 +208,11 @@ public class GearSwitcherPlugin extends Plugin {
     }
 
     /**
-     * True when another player is involved, so switching would help in PvP. Being in the Wilderness alone
-     * is fine (Wilderness bosses), but the moment we target a player or a player targets us, it stops.
+     * True when another player is involved, so switching would help in PvP. Being in the Wilderness or on a
+     * PvP world alone is fine (Wilderness bosses, Revenants), but the moment we target a player or a player targets us, it stops.
      * Client thread only.
      */
     private boolean isPvpSituation() {
-        if (WorldType.isPvpWorld(Microbot.getClient().getWorldType())) return true;
         Player local = Microbot.getClient().getLocalPlayer();
         if (local == null) return true;
         if (local.getInteracting() instanceof Player) return true;
