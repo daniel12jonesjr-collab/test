@@ -67,6 +67,7 @@ public class GearSwitcherPlugin extends Plugin {
     private final HotkeyListener set1Listener = listener(() -> config.set1Hotkey(), () -> config.set1Items(), () -> config.set1Prayer(), "Set 1");
     private final HotkeyListener set2Listener = listener(() -> config.set2Hotkey(), () -> config.set2Items(), () -> config.set2Prayer(), "Set 2");
     private final HotkeyListener set3Listener = listener(() -> config.set3Hotkey(), () -> config.set3Items(), () -> config.set3Prayer(), "Set 3");
+    private boolean pvp;
 
     @Provides
     GearSwitcherConfig provideConfig(ConfigManager configManager) {
@@ -103,10 +104,7 @@ public class GearSwitcherPlugin extends Plugin {
     }
 
     private void equipSet(String setName, String itemList, GearSwitcherConfig.OffensivePrayer prayer) {
-        if (!Microbot.isLoggedIn()) return;
-        boolean pvp = Microbot.getClientThread().runOnClientThreadOptional(this::isPvpSituation).orElse(true);
         if (pvp) {
-            Microbot.log("Gear Switcher is PvM only: switching is off while a player is involved.");
             return;
         }
 
@@ -130,7 +128,6 @@ public class GearSwitcherPlugin extends Plugin {
     /** Single-style monsters: switch as soon as one of them is fighting us. */
     @Subscribe
     public void onGameTick(GameTick event) {
-        if (!config.autoProtection() || isPvpSituation()) return;
         Map<String, Rs2PrayerEnum> byName = parseTable(config.npcPrayers());
         if (byName.isEmpty()) return;
 
@@ -165,7 +162,6 @@ public class GearSwitcherPlugin extends Plugin {
     }
 
     private void handleId(int id) {
-        if (!config.autoProtection() || isPvpSituation()) return;
         Rs2PrayerEnum prayer = parseTable(config.idPrayers()).get(String.valueOf(id));
         if (prayer != null) {
             requestProtection(prayer);
@@ -207,18 +203,4 @@ public class GearSwitcherPlugin extends Plugin {
         }
     }
 
-    /**
-     * True when another player is involved, so switching would help in PvP. Being in the Wilderness or on a
-     * PvP world alone is fine (Wilderness bosses, Revenants), but the moment we target a player or a player targets us, it stops.
-     * Client thread only.
-     */
-    private boolean isPvpSituation() {
-        Player local = Microbot.getClient().getLocalPlayer();
-        if (local == null) return true;
-        if (local.getInteracting() instanceof Player) return true;
-        for (Player other : Microbot.getClient().getTopLevelWorldView().players()) {
-            if (other != local && other.getInteracting() == local) return true;
-        }
-        return false;
-    }
 }
