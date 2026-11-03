@@ -147,6 +147,27 @@ public interface SimpleWoodcutterConfig extends Config {
     }
 
     @ConfigItem(
+            keyName = "dropEverything",
+            name = "Drop everything",
+            description = "When the inventory is full, drop all items (nests, seeds, ...), not just logs. "
+                    + "Axes, the knife and the 3-tick items are always kept",
+            position = 13
+    )
+    default boolean dropEverything() {
+        return true;
+    }
+
+    @ConfigItem(
+            keyName = "neverDrop",
+            name = "Never drop",
+            description = "Comma separated item names that are always kept, e.g. Coins,Bird nest",
+            position = 14
+    )
+    default String neverDrop() {
+        return "Coins";
+    }
+
+    @ConfigItem(
             keyName = "stuckSeconds",
             name = "Stop if stuck (s)",
             description = "Turn the script off when the player has not chopped, walked or gained a log for this long. "

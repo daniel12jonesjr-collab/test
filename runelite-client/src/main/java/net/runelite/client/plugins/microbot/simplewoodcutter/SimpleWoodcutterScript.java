@@ -12,7 +12,11 @@ import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
 import javax.inject.Singleton;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Minimal power-chopping loop. Each 600ms tick re-reads the game state and does one thing:
@@ -69,7 +73,7 @@ public class SimpleWoodcutterScript extends Script {
 
                 if (Rs2Inventory.isFull()) {
                     Microbot.status = "Dropping logs";
-                    Rs2Inventory.dropAll(item -> item.getName().equalsIgnoreCase(config.logName()), dropOrder(config));
+                    Rs2Inventory.dropAll(droppable(config, null), dropOrder(config));
                     sleepUntil(() -> !Rs2Inventory.isFull(), 10000);
                     return;
                 }
@@ -124,8 +128,7 @@ public class SimpleWoodcutterScript extends Script {
             // The knife trick needs one log to stay in the inventory, the herb trick does not
             Rs2ItemModel keep = knifeMethod ? Rs2Inventory.get(logName, true) : null;
             Microbot.status = "Dropping logs";
-            Rs2Inventory.dropAll(item -> item.getName().equalsIgnoreCase(logName)
-                    && (keep == null || item.getSlot() != keep.getSlot()), dropOrder(config));
+            Rs2Inventory.dropAll(droppable(config, keep), dropOrder(config));
             lastCycleTick = -1;
             return;
         }
@@ -173,6 +176,28 @@ public class SimpleWoodcutterScript extends Script {
             return false;
         }
         return config.stuckSeconds() > 0 && now - lastProgressAt > config.stuckSeconds() * 1000L;
+    }
+
+    /**
+     * What goes when the inventory is full. Only logs, or with "Drop everything" also nests, seeds and other
+     * loot. Tools (axe, knife, 3-tick items), the "Never drop" list and {@code keep} always stay.
+     */
+    private static Predicate<Rs2ItemModel> droppable(SimpleWoodcutterConfig config, Rs2ItemModel keep) {
+        Set<String> neverDrop = Arrays.stream(config.neverDrop().split(","))
+                .map(s -> s.trim().toLowerCase())
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+        String herb = config.herbName().toLowerCase();
+
+        return item -> {
+            if (keep != null && item.getSlot() == keep.getSlot()) return false;
+            String name = item.getName().toLowerCase();
+            if (!config.dropEverything()) return name.equals(config.logName().toLowerCase());
+            boolean tool = name.endsWith("axe") // bronze axe ... dragon felling axe
+                    || name.equals("knife") || name.equals("pestle and mortar")
+                    || name.equals("swamp tar") || name.equals(herb);
+            return !tool && !neverDrop.contains(name);
+        };
     }
 
     /** MIXED picks one of Microbot's drop patterns at random for every full inventory. */
