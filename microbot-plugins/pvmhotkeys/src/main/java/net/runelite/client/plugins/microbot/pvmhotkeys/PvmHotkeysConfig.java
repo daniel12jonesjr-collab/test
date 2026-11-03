@@ -45,4 +45,12 @@ public interface PvmHotkeysConfig extends Config
 		position = 3
 	)
 	default boolean showTimers() { return true; }
+
+	@ConfigItem(
+		keyName = "showTimings",
+		name = "Zeitmessung im Chat",
+		description = "Zeigt nach jedem Preset, wie viele Millisekunden Gebet, Gear und Aktion gebraucht haben.",
+		position = 4
+	)
+	default boolean showTimings() { return false; }
 }

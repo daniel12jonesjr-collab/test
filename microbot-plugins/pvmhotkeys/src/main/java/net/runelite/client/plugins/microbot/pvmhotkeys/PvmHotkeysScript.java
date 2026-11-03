@@ -8,9 +8,6 @@ import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.pvmhotkeys.model.Preset;
 import net.runelite.client.plugins.microbot.pvmhotkeys.model.Spells;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
-import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
-import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
-import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
 import net.runelite.client.plugins.microbot.util.magic.Spell;
 import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
@@ -43,7 +40,6 @@ import java.util.function.Consumer;
 public class PvmHotkeysScript extends Script
 {
 	private static final long POLL_MS = 15;
-	private static final String[] EQUIP_ACTIONS = {"wield", "wear", "equip"};
 
 	/** Latest-wins: Druecken waehrend ein Preset laeuft ersetzt das wartende, stapelt aber nicht. */
 	private final AtomicReference<Preset> pending = new AtomicReference<>();
@@ -101,9 +97,13 @@ public class PvmHotkeysScript extends Script
 	private void execute(Preset p)
 	{
 		List<String> problems = new ArrayList<>();
+		long t0 = System.nanoTime();
 
 		switchPrayers(p, problems);
+		long t1 = System.nanoTime();
+
 		switchGear(p, problems);
+		long t2 = System.nanoTime();
 
 		switch (p.getAction())
 		{
@@ -120,11 +120,23 @@ public class PvmHotkeysScript extends Script
 			default:
 				break;
 		}
+		long t3 = System.nanoTime();
 
 		if (!problems.isEmpty())
 		{
 			feedback(p.getName() + ": " + String.join(", ", problems));
 		}
+		if (config.showTimings())
+		{
+			// Zeigt, welcher Schritt bremst. Ziel: alles zusammen deutlich unter einem Tick (600 ms).
+			Microbot.log(String.format("%s: %d ms  (Gebet %d | Gear %d | Aktion %d)",
+				p.getName(), ms(t0, t3), ms(t0, t1), ms(t1, t2), ms(t2, t3)));
+		}
+	}
+
+	private static long ms(long from, long to)
+	{
+		return (to - from) / 1_000_000;
 	}
 
 	// ------------------------------------------------------------------ Gebete
@@ -153,42 +165,11 @@ public class PvmHotkeysScript extends Script
 
 	private void switchGear(Preset p, List<String> problems)
 	{
-		int missing = 0;
-		for (int id : p.getGear())
+		FastEquip.Result r = FastEquip.equip(p.getGear());
+		if (r.missing > 0)
 		{
-			if (Rs2Equipment.isWearing(id)) continue;
-
-			Rs2ItemModel item = Rs2Inventory.get(id);
-			if (item == null)
-			{
-				missing++;
-				continue;
-			}
-			String action = equipAction(item);
-			if (action != null)
-			{
-				Rs2Inventory.interact(item, action);
-			}
+			problems.add(r.missing + " Item(s) nicht im Inventar");
 		}
-		if (missing > 0)
-		{
-			problems.add(missing + " Item(s) nicht im Inventar");
-		}
-	}
-
-	private static String equipAction(Rs2ItemModel item)
-	{
-		String[] actions = item.getInventoryActions();
-		if (actions == null) return null;
-		for (String a : actions)
-		{
-			if (a == null) continue;
-			for (String e : EQUIP_ACTIONS)
-			{
-				if (a.equalsIgnoreCase(e)) return a;
-			}
-		}
-		return null;
 	}
 
 	// ------------------------------------------------------------------ Aktionen
