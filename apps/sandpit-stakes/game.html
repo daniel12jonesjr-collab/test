@@ -1,0 +1,487 @@
+<title>Sandpit Stakes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@600;800&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: one phone-first column. Arena canvas on top, stake controls under it, duel history last. */
+  :root {
+    /* Single committed look: a sand arena at dusk. Dark on purpose, works on either host theme. */
+    --night: #1a1311;
+    --stone: #2e221d;
+    --stone-hi: #3d2e27;
+    --sand: #d8b479;
+    --ink: #f4ead9;
+    --muted: #b49e86;
+    --blood: #c8372f;
+    --spec: #3aa892;
+    --gold: #f0c24b;
+    --win: #6cc56f;
+    --line: #4b3a31;
+    --display: "Grenze Gotisch", "Palatino Linotype", Georgia, serif;
+    --body: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    color-scheme: dark;
+  }
+
+  html, body { background: var(--night); color: var(--ink); }
+  body {
+    font-family: var(--body);
+    font-size: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px 28px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .app { max-width: 520px; margin: 0 auto; display: grid; gap: 14px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(30px, 9vw, 40px);
+    line-height: 0.95;
+    margin: 0;
+    color: var(--sand);
+    letter-spacing: 0.5px;
+    text-wrap: balance;
+  }
+  .purse { text-align: right; }
+  .purse small {
+    display: block; font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted);
+  }
+  .coins {
+    font-weight: 700; font-size: 26px; color: var(--gold);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .coins.bump { animation: bump .5s ease; }
+  @keyframes bump { 40% { transform: scale(1.12); } }
+
+  .arena-wrap { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--stone); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; max-width: 100%; touch-action: manipulation; }
+
+  .banner {
+    position: absolute; inset: auto 12px 12px 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: color-mix(in srgb, var(--night) 88%, transparent);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .banner strong { font-family: var(--display); font-size: 24px; font-weight: 800; letter-spacing: .5px; }
+  .banner .won { color: var(--win); }
+  .banner .lost { color: var(--blood); }
+  .banner span { color: var(--muted); font-size: 14px; }
+
+  .panel { background: var(--stone); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 12px; }
+  .label { font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+
+  .stake-row { display: flex; align-items: center; gap: 10px; }
+  .stake-value {
+    flex: 1; min-width: 0;
+    font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  .step {
+    width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--stone-hi); color: var(--ink); font-size: 22px; font-weight: 600; cursor: pointer;
+  }
+  .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .chip {
+    height: 38px; border-radius: 999px; border: 1px solid var(--line); background: var(--stone-hi);
+    color: var(--ink); font: 600 15px var(--body); cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .chip[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+
+  .fight {
+    height: 56px; border-radius: 12px; border: 0; cursor: pointer;
+    background: var(--blood); color: var(--ink);
+    font: 800 26px var(--display); letter-spacing: .6px;
+    box-shadow: 0 3px 0 #7d1f19;
+  }
+  .fight:active { transform: translateY(2px); box-shadow: 0 1px 0 #7d1f19; }
+  .fight:disabled { background: var(--stone-hi); color: var(--muted); box-shadow: none; cursor: default; }
+
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 14px; color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .toggle {
+    margin-left: auto; border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 3px 10px; font: 500 13px var(--body); cursor: pointer;
+  }
+  .toggle[aria-pressed="true"] { color: var(--spec); border-color: var(--spec); }
+
+  .history { display: grid; gap: 6px; }
+  .history h2 { font-family: var(--display); font-weight: 600; font-size: 22px; margin: 0 0 4px; color: var(--sand); }
+  .duel {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline;
+    padding: 9px 12px; border-radius: 10px; background: var(--stone); border-left: 3px solid var(--line);
+  }
+  .duel.w { border-left-color: var(--win); }
+  .duel.l { border-left-color: var(--blood); }
+  .duel .who { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  .duel .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .duel.w .amt { color: var(--win); }
+  .duel.l .amt { color: var(--blood); }
+  .duel .how { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .example { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+
+  button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .coins.bump { animation: none; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1>Sandpit<br>Stakes</h1>
+    <div class="purse">
+      <small>Dein Beutel</small>
+      <div class="coins" id="coins">10M</div>
+    </div>
+  </header>
+
+  <div class="arena-wrap">
+    <canvas id="arena" width="640" height="480" aria-label="Duell-Arena"></canvas>
+    <div class="banner" id="banner" hidden>
+      <strong id="bannerTitle"></strong>
+      <span id="bannerText"></span>
+    </div>
+  </div>
+
+  <section class="panel" aria-label="Einsatz">
+    <div class="label">Einsatz</div>
+    <div class="stake-row">
+      <button class="step" id="minus" aria-label="Einsatz verringern">&minus;</button>
+      <div class="stake-value" id="stake">1M</div>
+      <button class="step" id="plus" aria-label="Einsatz erhöhen">+</button>
+    </div>
+    <div class="chips" id="chips">
+      <button class="chip" data-v="1000000" aria-pressed="true">1M</button>
+      <button class="chip" data-v="5000000" aria-pressed="false">5M</button>
+      <button class="chip" data-v="half" aria-pressed="false">½</button>
+      <button class="chip" data-v="all" aria-pressed="false">Alles</button>
+    </div>
+    <button class="fight" id="fight">Duell starten</button>
+    <div class="meta">
+      <span>Siege <b id="wins">0</b></span>
+      <span>Niederlagen <b id="losses">0</b></span>
+      <span>Serie <b id="streak">0</b></span>
+      <span>Rekord <b id="best">10M</b></span>
+      <button class="toggle" id="speed" aria-pressed="false">2× Tempo</button>
+    </div>
+  </section>
+
+  <section class="history" aria-label="Letzte Duelle">
+    <h2>Letzte Duelle</h2>
+    <div id="history"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------ Spielregeln
+  const START_COINS = 10_000_000;
+  const MIN_STAKE = 100_000;
+  const HP = 99;
+  const TICK_MS = 600;           // ein Spiel-Tick
+  const ATTACK_EVERY = 4;        // Dolch: alle 4 Ticks
+  const SPEC_COST = 25;          // 4 Specials bei 100 % Energie
+  const SPEC = { hits: 2, acc: 0.78, max: 24 };   // Spezialangriff: zwei schnelle Stiche
+  const STAB = { hits: 1, acc: 0.66, max: 21 };   // normaler Stich
+
+  // ------------------------------------------------------------------ Speicher (nur dieses Gerät)
+  const KEY = "sandpit-stakes-v1";
+  const fresh = () => ({ coins: START_COINS, wins: 0, losses: 0, streak: 0, best: START_COINS, stake: 1_000_000, history: [], fast: false });
+  let save = fresh();
+  try { const raw = localStorage.getItem(KEY); if (raw) save = Object.assign(fresh(), JSON.parse(raw)); } catch (e) {}
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
+
+  // ------------------------------------------------------------------ Hilfen
+  const $ = id => document.getElementById(id);
+  const rnd = n => Math.floor(Math.random() * n);
+  const fmt = v => {
+    const a = Math.abs(v), s = v < 0 ? "-" : "";
+    if (a >= 1e9) return s + (a / 1e9).toFixed(a >= 1e10 ? 1 : 2).replace(/\.?0+$/, "").replace(".", ",") + "B";
+    if (a >= 1e6) return s + (a / 1e6).toFixed(a >= 1e7 ? 1 : 2).replace(/\.?0+$/, "").replace(".", ",") + "M";
+    if (a >= 1e3) return s + Math.round(a / 1e3) + "k";
+    return s + a;
+  };
+  const NAMES_A = ["Sand", "Rust", "Ember", "Quick", "Iron", "Dusk", "Lucky", "Grim", "Copper", "Swift", "Stone", "Vile"];
+  const NAMES_B = ["fang", "jab", "viper", "hand", "wolf", "stab", "blade", "thorn", "claw", "rat", "duke", "spike"];
+  const foeName = () => NAMES_A[rnd(NAMES_A.length)] + NAMES_B[rnd(NAMES_B.length)] + (Math.random() < .5 ? rnd(99) + 1 : "");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ------------------------------------------------------------------ Zustand eines Duells
+  const mk = (name, side) => ({ name, side, hp: HP, spec: 100, lunge: 0, flash: 0 });
+  let me = mk("Du", -1), foe = mk(foeName(), 1);
+  let splats = [], dust = [], running = false, firstIsMe = true, tick = 0, result = null;
+
+  // ------------------------------------------------------------------ Kampf-Logik
+  function swing(attacker) {
+    const useSpec = attacker.spec >= SPEC_COST;
+    const kind = useSpec ? SPEC : STAB;
+    if (useSpec) attacker.spec -= SPEC_COST;
+    const hits = [];
+    for (let i = 0; i < kind.hits; i++) hits.push(Math.random() < kind.acc ? rnd(kind.max + 1) : 0);
+    return { hits, useSpec };
+  }
+
+  function apply(att, def, sw) {
+    att.lunge = 1;
+    sw.hits.forEach((dmg, i) => {
+      def.hp = Math.max(0, def.hp - dmg);
+      splats.push({ side: def.side, dmg, age: -i * 120, i, spec: sw.useSpec });
+      if (dmg > 0) { def.flash = 1; for (let k = 0; k < 7; k++) dust.push(particle(def.side)); }
+    });
+  }
+
+  function step() {
+    tick++;
+    if (tick % ATTACK_EVERY !== 1) return;
+    // Beide greifen im selben Tick an. Wer zuerst dran ist (Münzwurf), trifft zuerst.
+    const order = firstIsMe ? [me, foe] : [foe, me];
+    const a = order[0], b = order[1];
+    apply(a, b, swing(a));
+    if (b.hp > 0) apply(b, a, swing(b));
+    if (me.hp === 0 || foe.hp === 0) finish();
+  }
+
+  function finish() {
+    running = false;
+    const won = foe.hp === 0;
+    const stake = save.stake;
+    save.coins += won ? stake : -stake;
+    if (won) { save.wins++; save.streak = save.streak > 0 ? save.streak + 1 : 1; }
+    else { save.losses++; save.streak = save.streak < 0 ? save.streak - 1 : -1; }
+    save.best = Math.max(save.best, save.coins);
+    save.history.unshift({ won, foe: foe.name, stake, hpLeft: won ? me.hp : foe.hp, first: firstIsMe });
+    save.history = save.history.slice(0, 12);
+    if (save.stake > save.coins) save.stake = Math.max(MIN_STAKE, Math.min(save.stake, save.coins));
+    result = won;
+    persist();
+    setTimeout(() => showResult(won, stake), 650);
+  }
+
+  // ------------------------------------------------------------------ Zeichnen
+  const cv = $("arena"), g = cv.getContext("2d");
+  const W = cv.width, H = cv.height, FLOOR = H * 0.74;
+  const posX = side => W / 2 + side * W * 0.2;
+
+  function particle(side) {
+    return { x: posX(side) - side * 10, y: FLOOR - 70 - rnd(40), vx: (Math.random() - .5) * 3 + side * 1.4, vy: -Math.random() * 3, life: 1 };
+  }
+
+  function drawArena() {
+    // Himmel: Abenddaemmerung
+    const sky = g.createLinearGradient(0, 0, 0, H * 0.45);
+    sky.addColorStop(0, "#2a1a24"); sky.addColorStop(1, "#7a4330");
+    g.fillStyle = sky; g.fillRect(0, 0, W, H * 0.45);
+    // Mauer aus Sandstein
+    g.fillStyle = "#5a4232"; g.fillRect(0, H * 0.3, W, H * 0.2);
+    g.fillStyle = "#4a3528";
+    for (let r = 0; r < 3; r++) for (let c = -1; c < 12; c++) {
+      g.fillRect(c * 60 + (r % 2) * 30, H * 0.3 + r * 26, 56, 2);
+      g.fillRect(c * 60 + (r % 2) * 30, H * 0.3 + r * 26, 2, 26);
+    }
+    // Banner
+    [[0.18, "#8f2d26"], [0.82, "#2d6c63"]].forEach(([x, c]) => {
+      g.fillStyle = c; g.beginPath();
+      g.moveTo(W * x - 18, H * 0.31); g.lineTo(W * x + 18, H * 0.31); g.lineTo(W * x + 18, H * 0.47);
+      g.lineTo(W * x, H * 0.43); g.lineTo(W * x - 18, H * 0.47); g.closePath(); g.fill();
+    });
+    // Sandboden
+    const sand = g.createLinearGradient(0, H * 0.5, 0, H);
+    sand.addColorStop(0, "#c9a265"); sand.addColorStop(1, "#9c7a45");
+    g.fillStyle = sand; g.fillRect(0, H * 0.5, W, H * 0.5);
+    g.fillStyle = "rgba(90,60,30,.18)";
+    for (let i = 0; i < 40; i++) g.fillRect((i * 97) % W, H * 0.55 + ((i * 53) % (H * 0.4)), 14, 2);
+  }
+
+  function drawFighter(f, t) {
+    const lungeX = reduced ? 0 : Math.sin(Math.min(f.lunge, 1) * Math.PI) * 34;
+    const x = posX(f.side) - f.side * lungeX;
+    const y = FLOOR;
+    const bob = f.hp > 0 ? Math.sin(t / 380 + f.side) * 2 : 0;
+    const down = f.hp === 0;
+    const cloak = f.side < 0 ? "#2e6f8e" : "#9b3329";
+
+    g.save();
+    g.translate(x, y);
+    if (down) { g.rotate(f.side * -1.35); g.translate(0, 14); }
+    // Schatten
+    g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.ellipse(0, 4, 34, 8, 0, 0, Math.PI * 2); g.fill();
+    // Beine
+    g.fillStyle = "#3a2a20"; g.fillRect(-14, -36, 10, 36); g.fillRect(4, -36, 10, 36);
+    // Koerper (Umhang)
+    g.fillStyle = cloak; g.beginPath();
+    g.moveTo(-22, -34 + bob); g.lineTo(22, -34 + bob); g.lineTo(16, -92 + bob); g.lineTo(-16, -92 + bob); g.closePath(); g.fill();
+    // Treffer-Aufblitzen
+    if (f.flash > 0) { g.fillStyle = `rgba(255,255,255,${f.flash * .45})`; g.fill(); }
+    // Kopf mit Helm
+    g.fillStyle = "#e1c29a"; g.beginPath(); g.arc(0, -104 + bob, 13, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#7d8790"; g.beginPath(); g.arc(0, -108 + bob, 14, Math.PI, 0); g.fill();
+    g.fillRect(-14, -108 + bob, 28, 4);
+    // Arm + Dolch zum Gegner
+    const dir = -f.side;
+    g.strokeStyle = "#e1c29a"; g.lineWidth = 7; g.lineCap = "round";
+    g.beginPath(); g.moveTo(dir * 12, -80 + bob); g.lineTo(dir * 34, -70 + bob); g.stroke();
+    g.strokeStyle = "#c9cdd2"; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(dir * 34, -70 + bob); g.lineTo(dir * 56, -76 + bob); g.stroke();
+    g.strokeStyle = "#5bd1bd"; g.lineWidth = 2;   // gruene Klinge
+    g.beginPath(); g.moveTo(dir * 40, -71 + bob); g.lineTo(dir * 56, -76 + bob); g.stroke();
+    g.restore();
+  }
+
+  function drawBars(f) {
+    const w = 150, x = posX(f.side) - w / 2, y = 22;
+    g.font = "600 20px 'Barlow Semi Condensed', Arial, sans-serif";
+    g.textAlign = "center"; g.fillStyle = "#f4ead9";
+    g.fillText(f.name, x + w / 2, y);
+    // Lebenspunkte
+    g.fillStyle = "#3b100d"; g.fillRect(x, y + 10, w, 14);
+    g.fillStyle = f.hp > 30 ? "#47b04a" : f.hp > 15 ? "#d6a529" : "#d3402f";
+    g.fillRect(x, y + 10, w * f.hp / HP, 14);
+    g.fillStyle = "#f4ead9"; g.font = "700 14px 'Barlow Semi Condensed', Arial, sans-serif";
+    g.fillText(f.hp + " / " + HP, x + w / 2, y + 22);
+    // Spezialenergie
+    g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(x, y + 28, w, 6);
+    g.fillStyle = "#3aa892"; g.fillRect(x, y + 28, w * f.spec / 100, 6);
+  }
+
+  function drawSplats(dt) {
+    splats = splats.filter(s => s.age < 1100);
+    for (const s of splats) {
+      s.age += dt;
+      if (s.age < 0) continue;
+      const a = s.age < 800 ? 1 : 1 - (s.age - 800) / 300;
+      const x = posX(s.side) + (s.i ? 22 : -22) * (s.spec ? 1 : 0);
+      const y = FLOOR - 70 - (s.i ? 18 : 0);
+      g.globalAlpha = Math.max(0, a);
+      g.fillStyle = s.dmg > 0 ? "#c8372f" : "#2f6fd1";
+      g.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const r = k % 2 ? 15 : 21, ang = (k / 10) * Math.PI * 2;
+        g.lineTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+      }
+      g.closePath(); g.fill();
+      g.fillStyle = "#fff"; g.font = "800 20px 'Barlow Semi Condensed', Arial, sans-serif"; g.textAlign = "center";
+      g.fillText(String(s.dmg), x, y + 7);
+      g.globalAlpha = 1;
+    }
+  }
+
+  function drawDust() {
+    dust = dust.filter(p => p.life > 0);
+    for (const p of dust) {
+      p.x += p.vx; p.y += p.vy; p.vy += .15; p.life -= .03;
+      g.fillStyle = `rgba(222,190,130,${p.life})`; g.fillRect(p.x, p.y, 4, 4);
+    }
+  }
+
+  function drawStatus() {
+    if (running || result !== null) {
+      g.font = "600 17px 'Barlow Semi Condensed', Arial, sans-serif"; g.textAlign = "center";
+      g.fillStyle = "rgba(26,19,17,.6)";
+      const txt = (firstIsMe ? "Du" : foe.name) + " schlägt zuerst";
+      const tw = g.measureText(txt).width + 24;
+      g.fillRect(W / 2 - tw / 2, H * 0.5 - 4, tw, 26);
+      g.fillStyle = "#f0c24b"; g.fillText(txt, W / 2, H * 0.5 + 15);
+    } else {
+      g.font = "800 34px 'Grenze Gotisch', Georgia, serif"; g.textAlign = "center";
+      g.fillStyle = "#f4ead9"; g.fillText("Wähle deinen Einsatz", W / 2, H * 0.52);
+    }
+  }
+
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    const dt = Math.min(100, now - last); last = now;
+    const tickMs = save.fast ? TICK_MS / 2 : TICK_MS;
+    if (running) { acc += dt; while (acc >= tickMs && running) { acc -= tickMs; step(); } }
+    for (const f of [me, foe]) { f.lunge = f.lunge > 0 ? Math.max(0, f.lunge - dt / 280) : 0; f.flash = Math.max(0, f.flash - dt / 250); }
+    g.clearRect(0, 0, W, H);
+    drawArena(); drawFighter(me, now); drawFighter(foe, now); drawDust(); drawSplats(dt); drawBars(me); drawBars(foe); drawStatus();
+    requestAnimationFrame(frame);
+  }
+
+  // ------------------------------------------------------------------ Oberflaeche
+  function render() {
+    $("coins").textContent = fmt(save.coins);
+    $("stake").textContent = fmt(save.stake);
+    $("wins").textContent = save.wins;
+    $("losses").textContent = save.losses;
+    $("streak").textContent = save.streak > 0 ? "+" + save.streak : save.streak;
+    $("best").textContent = fmt(save.best);
+    $("speed").setAttribute("aria-pressed", String(save.fast));
+    const broke = save.coins < MIN_STAKE;
+    $("fight").disabled = running;
+    $("fight").textContent = broke ? "Neu anfangen (10M)" : running ? "Duell läuft …" : "Duell starten";
+    document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(chipValue(c.dataset.v) === save.stake)));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const box = $("history");
+    const list = save.history.length ? save.history : EXAMPLES;
+    box.innerHTML = "";
+    if (!save.history.length) {
+      const ex = document.createElement("div"); ex.className = "example"; ex.textContent = "Beispiele, bis du dein erstes Duell spielst";
+      box.appendChild(ex);
+    }
+    for (const d of list) {
+      const el = document.createElement("div");
+      el.className = "duel " + (d.won ? "w" : "l");
+      el.innerHTML = `<span class="who"></span><span class="amt"></span><span class="how"></span>`;
+      el.querySelector(".who").textContent = (d.won ? "Sieg gegen " : "Niederlage gegen ") + d.foe;
+      el.querySelector(".amt").textContent = (d.won ? "+" : "-") + fmt(d.stake);
+      el.querySelector(".how").textContent = (d.first ? "Du hast zuerst geschlagen" : d.foe + " hat zuerst geschlagen")
+        + " · " + (d.won ? "du mit " : "er mit ") + d.hpLeft + " HP übrig";
+      box.appendChild(el);
+    }
+  }
+  const EXAMPLES = [
+    { won: true, foe: "Rustfang41", stake: 5_000_000, hpLeft: 23, first: true },
+    { won: false, foe: "Duskviper", stake: 1_000_000, hpLeft: 8, first: false },
+  ];
+
+  function chipValue(v) {
+    if (v === "all") return Math.max(MIN_STAKE, save.coins);
+    if (v === "half") return Math.max(MIN_STAKE, Math.floor(save.coins / 2 / 100_000) * 100_000);
+    return Number(v);
+  }
+  function setStake(v) {
+    save.stake = Math.max(MIN_STAKE, Math.min(v, Math.max(save.coins, MIN_STAKE)));
+    persist(); render();
+  }
+  function stepSize(v) { return v < 1e6 ? 100_000 : v < 1e7 ? 500_000 : v < 1e8 ? 5_000_000 : 50_000_000; }
+
+  $("plus").onclick = () => !running && setStake(save.stake + stepSize(save.stake));
+  $("minus").onclick = () => !running && setStake(save.stake - stepSize(save.stake - 1));
+  document.querySelectorAll(".chip").forEach(c => c.onclick = () => !running && setStake(chipValue(c.dataset.v)));
+  $("speed").onclick = () => { save.fast = !save.fast; persist(); render(); };
+
+  $("fight").onclick = () => {
+    if (running) return;
+    if (save.coins < MIN_STAKE) { const keep = save.best; save = fresh(); save.best = keep; persist(); render(); return; }
+    if (save.stake > save.coins) setStake(save.coins);
+    me = mk("Du", -1); foe = mk(foeName(), 1);
+    splats = []; dust = []; tick = 0; acc = 0; result = null;
+    firstIsMe = Math.random() < 0.5;
+    $("banner").hidden = true;
+    running = true;
+    render();
+  };
+
+  function showResult(won, stake) {
+    $("bannerTitle").textContent = won ? "Gewonnen!" : "Verloren";
+    $("bannerTitle").className = won ? "won" : "lost";
+    $("bannerText").textContent = (won ? "+" : "-") + fmt(stake) + " · " + (won ? foe.name + " liegt im Sand" : foe.name + " streicht den Einsatz ein");
+    $("banner").hidden = false;
+    const c = $("coins"); c.classList.remove("bump"); void c.offsetWidth; c.classList.add("bump");
+    render();
+  }
+
+  render();
+  requestAnimationFrame(frame);
+
+  // Als installierte iPhone-App: offline verfuegbar machen (im Vorschau-Fenster ohne Wirkung)
+  try { if ("serviceWorker" in navigator && location.protocol === "https:" && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
+})();
+</script>
