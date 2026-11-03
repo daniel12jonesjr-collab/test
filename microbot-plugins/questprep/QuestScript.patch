@@ -1,0 +1,132 @@
+diff --git a/runelite-client/src/main/java/net/runelite/client/plugins/microbot/questhelper/QuestScript.java b/runelite-client/src/main/java/net/runelite/client/plugins/microbot/questhelper/QuestScript.java
+index 71d0bf7..bc316be 100644
+--- a/runelite-client/src/main/java/net/runelite/client/plugins/microbot/questhelper/QuestScript.java
++++ b/runelite-client/src/main/java/net/runelite/client/plugins/microbot/questhelper/QuestScript.java
+@@ -34,6 +34,10 @@ import net.runelite.client.plugins.microbot.util.shop.Rs2Shop;
+ import net.runelite.client.plugins.microbot.util.tile.Rs2Tile;
+ import net.runelite.client.plugins.microbot.util.walker.Rs2PathApi;
+ import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
++import net.runelite.client.plugins.microbot.questhelper.prep.QuestPrep;
++import net.runelite.client.plugins.microbot.questhelper.prep.QuestPrepConfig;
++import net.runelite.client.plugins.microbot.questhelper.prep.QuestTravel;
++import net.runelite.client.plugins.microbot.questhelper.prep.StepGuard;
+ import net.runelite.client.plugins.microbot.util.walker.WalkerState;
+ import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
+ import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
+@@ -83,6 +87,7 @@ public class QuestScript extends Script {
+     int unreachableTargetCheckDist = 1;
+ 
+     private QuestHelperConfig config;
++    private QuestPrepConfig prepConfig;
+     private QuestHelperPlugin mQuestPlugin;
+     private static Set<Integer> npcsHandled = new HashSet<>();
+     private static Set<Long> objectsHandeled = new HashSet<>();
+@@ -117,6 +122,19 @@ public class QuestScript extends Script {
+                 if (!super.run()) return;
+                 if (getQuestHelperPlugin().getSelectedQuest() == null) return;
+ 
++                // Quest Prep: Vorbereitung vor Questbeginn + Pruefungen vor jedem Schritt
++                if (!Rs2Dialogue.isInDialogue()) {
++                    QuestPrep.Result prep = QuestPrep.get().tick(getQuestHelperPlugin().getSelectedQuest(), prepConfig());
++                    if (prep == QuestPrep.Result.FAILED) {
++                        String reason = QuestPrep.get().getMessage();
++                        QuestPrep.get().restart();
++                        stopQuesterWithReason(reason);
++                        return;
++                    }
++                    if (prep == QuestPrep.Result.BUSY) return;
++                    if (StepGuard.check(prepConfig())) return;
++                }
++
+                 if (Rs2Player.isAnimating())
+                     Rs2Player.waitForAnimation();
+ 
+@@ -967,7 +985,18 @@ public class QuestScript extends Script {
+ 		}
+ 	}
+ 
++	private QuestPrepConfig prepConfig() {
++		if (prepConfig == null) {
++			prepConfig = Microbot.getConfigManager().getConfig(QuestPrepConfig.class);
++		}
++		return prepConfig;
++	}
++
+ 	private boolean shouldObtainMissingItems() {
++		// Mit Quest Prep wird nur EINMAL vor Questbeginn (mit Abfrage) gekauft, nie mitten in der Quest
++		if (prepConfig().enabled()) {
++			return false;
++		}
+ 		if (Rs2Player.isIronman()) {
+ 			return false;
+ 		}
+@@ -1280,7 +1309,7 @@ public class QuestScript extends Script {
+ 					&& Rs2Camera.isTileOnScreen(LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), worldPoint))) {
+ 				lootGroundItem(targetItemId, 10);
+ 			} else {
+-				Rs2Walker.walkTo(worldPoint, 2);
++				QuestTravel.walkTo(worldPoint, 2);
+ 			}
+ 		} else {
+ 			lootGroundItem(targetItemId, 20);
+@@ -1424,12 +1453,12 @@ public class QuestScript extends Script {
+                 sleepUntil(Rs2Dialogue::isInDialogue);
+             }
+         } else if (npc != null && npc.getLocalLocation() != null && !Rs2Camera.isTileOnScreen(npc.getLocalLocation())) {
+-            Rs2Walker.walkTo(npc.getWorldLocation(), 2);
++            QuestTravel.walkTo(npc.getWorldLocation(), 2);
+         } else if (npc != null && (!npc.hasLineOfSight() || !Rs2Walker.canReach(npc.getWorldLocation()))) {
+-            Rs2Walker.walkTo(npc.getWorldLocation(), 2);
++            QuestTravel.walkTo(npc.getWorldLocation(), 2);
+         } else {
+             if (step.getDefinedPoint().getWorldPoint().distanceTo(Rs2Player.getWorldLocation()) > 3) {
+-                Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint(), 2);
++                QuestTravel.walkTo(step.getDefinedPoint().getWorldPoint(), 2);
+                 return false;
+             }
+         }
+@@ -1465,7 +1494,7 @@ public class QuestScript extends Script {
+ 
+             for (var tile : Rs2Tile.getWalkableTilesAroundTile(object.getWorldLocation(), unreachableTargetCheckDist)) {
+                 if (tileObjects.stream().noneMatch(x -> x.getWorldLocation().equals(tile))) {
+-                    if (!Rs2Walker.walkTo(tile) && !Rs2PathApi.getActiveRouteStatus().isPresent())
++                    if (!QuestTravel.walkTo(tile) && !Rs2PathApi.getActiveRouteStatus().isPresent())
+                         return false;
+ 
+                     sleepUntil(() -> !Rs2PathApi.getActiveRouteStatus().isCalculating());
+@@ -1530,7 +1559,7 @@ public class QuestScript extends Script {
+             sleepUntil(() -> !Rs2Player.isMoving() && !Rs2Player.isAnimating());
+             objectsHandeled.add(object.getHash());
+         } else if (object != null) {
+-            Rs2Walker.walkTo(object.getWorldLocation(), 1);
++            QuestTravel.walkTo(object.getWorldLocation(), 1);
+             return false;
+         }
+ 
+@@ -1550,7 +1579,7 @@ public class QuestScript extends Script {
+     }
+ 
+     private boolean applyDigStep(DigStep step) {
+-        if (!Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint()))
++        if (!QuestTravel.walkTo(step.getDefinedPoint().getWorldPoint()))
+             return false;
+         else if (!Rs2Player.getWorldLocation().equals(step.getDefinedPoint().getWorldPoint()))
+             Rs2Walker.walkFastCanvas(step.getDefinedPoint().getWorldPoint());
+@@ -1686,7 +1715,7 @@ public class QuestScript extends Script {
+             if (Rs2Tile.areSurroundingTilesWalkable(definedPoint, 1, 1)) {
+                 WorldPoint nearestUnreachableWalkableTile = Rs2Tile.getNearestWalkableTileWithLineOfSight(definedPoint);
+                 if (nearestUnreachableWalkableTile != null) {
+-                    return Rs2Walker.walkTo(nearestUnreachableWalkableTile, 0);
++                    return QuestTravel.walkTo(nearestUnreachableWalkableTile, 0);
+                 }
+             }
+         }
+@@ -1711,7 +1740,7 @@ public class QuestScript extends Script {
+ 			}
+ 		}
+ 
+-        if (!usingItems && definedPoint != null && !Rs2Walker.walkTo(definedPoint))
++        if (!usingItems && definedPoint != null && !QuestTravel.walkTo(definedPoint))
+             return true;
+ 
+ 		if (conditionalStep.getIconItemID() != -1 && definedPoint != null
