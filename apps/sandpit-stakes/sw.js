@@ -1,5 +1,7 @@
-// Offline-Speicher: beim ersten Laden alles cachen, danach laeuft die App ohne Internet.
-const CACHE = "sandpit-stakes-v1";
+// Offline-Speicher fuer die installierte App.
+// Seite selbst: erst Netz (damit Updates ankommen), ohne Netz aus dem Speicher.
+// Icons, Schriften usw.: erst Speicher, sonst Netz.
+const CACHE = "sandpit-stakes-v2";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -12,12 +14,20 @@ self.addEventListener("activate", e => {
     .then(() => self.clients.claim()));
 });
 
-// Erst Cache, sonst Netz (und Schriften fuer spaeter mitspeichern)
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  const isPage = e.request.mode === "navigate";
+  if (isPage) {
+    e.respondWith(fetch(e.request).then(res => {
+      const copy = res.clone();
+      caches.open(CACHE).then(c => c.put(e.request, copy));
+      return res;
+    }).catch(() => caches.match(e.request).then(hit => hit || caches.match("index.html"))));
+    return;
+  }
   e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
     const copy = res.clone();
     if (res.ok || res.type === "opaque") caches.open(CACHE).then(c => c.put(e.request, copy));
     return res;
-  }).catch(() => caches.match("index.html"))));
+  })));
 });
