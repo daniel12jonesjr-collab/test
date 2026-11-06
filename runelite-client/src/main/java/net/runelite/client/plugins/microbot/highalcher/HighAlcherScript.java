@@ -152,7 +152,7 @@ public class HighAlcherScript extends Script {
                     if (config.restockEnabled()) {
                         restock(config);
                     } else {
-                        stop(naturesLeft == 0 ? "Out of nature runes" : "Nothing left to alch", config);
+                        stop(naturesLeft == 0 ? "Out of nature runes" : "Nothing left to alch" + skippedForProfit(config), config);
                     }
                     return;
                 }
@@ -199,6 +199,25 @@ public class HighAlcherScript extends Script {
                 })
                 .filter(c -> c.profitEach >= config.minProfitPerAlch())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Items the min profit setting kept back, e.g. " (skipped: Inoculation bracelet -32 gp, min profit is 0)",
+     * so a stop does not look like the item was not seen. Empty when none.
+     */
+    private static String skippedForProfit(HighAlcherConfig config) {
+        Set<String> keep = names(config.keepItems());
+        int natureCost = price(ItemID.NATURERUNE);
+        String skipped = Rs2Inventory.all(item -> !keep.contains(item.getName().toLowerCase())
+                        && item.getId() != ItemID.NATURERUNE
+                        && (!config.tradeableOnly() || item.isTradeable())
+                        && item.getHaPrice() > 0)
+                .stream()
+                .filter(item -> item.getHaPrice() - price(item.getId()) - natureCost < config.minProfitPerAlch())
+                .map(item -> item.getName() + " " + (item.getHaPrice() - price(item.getId()) - natureCost) + " gp")
+                .distinct()
+                .collect(Collectors.joining(", "));
+        return skipped.isEmpty() ? "" : " (skipped: " + skipped + ", min profit is " + config.minProfitPerAlch() + ")";
     }
 
     private Candidate pick(List<Candidate> candidates, HighAlcherConfig.Order order) {

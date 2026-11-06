@@ -51,6 +51,7 @@ public interface HighAlcherConfig extends Config {
             position = 1,
             section = items
     )
+    @Range(min = -100_000)
     default int minProfitPerAlch() {
         return 0;
     }
