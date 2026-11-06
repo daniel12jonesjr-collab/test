@@ -33,6 +33,8 @@ include("client")
 project(":client").projectDir = file("./runelite-client")
 include("hwid-agent")
 project(":hwid-agent").projectDir = file("./hwid-agent")
+include("hwid-guard")
+project(":hwid-guard").projectDir = file("./hwid-guard")
 apply(from = "./common.settings.gradle.kts")
 
 includeBuild("cache")
